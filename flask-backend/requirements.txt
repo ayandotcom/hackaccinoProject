@@ -1,0 +1,8 @@
+Flask==2.3.3
+flask-cors==4.0.0
+flask-limiter==3.5.0
+PyJWT==2.8.0
+python-dotenv==1.0.0
+cryptography==41.0.7  # For ssl_context
+gunicorn==21.2.0  # For production deployment
+pyOpenSSL==23.3.0  # For SSL/TLS support 
