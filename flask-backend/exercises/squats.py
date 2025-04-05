@@ -1,102 +1,149 @@
 import cv2
 import math
-from tkinter import *
-from PIL import Image, ImageTk
 import mediapipe as md
+import time
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Importing necessary libraries
 md_drawing = md.solutions.drawing_utils
 md_drawing_style = md.solutions.drawing_styles
 md_pose = md.solutions.pose
 
-count = 0
-position = None
+def count_exercise():
+    count = 0
+    position = None
+    start_time = time.time()
+    timeout = 60  # 60 seconds timeout
+    last_feedback = "Get ready for squats!"
+    form_status = "good"  # Can be "good", "warning", or "bad"
 
-cap = cv2.VideoCapture(0)
-video_file = None
+    # Try different camera indices
+    cap = None
+    for camera_index in [0, 1]:
+        try:
+            cap = cv2.VideoCapture(camera_index)
+            if cap.isOpened():
+                ret, test_frame = cap.read()
+                if ret and test_frame is not None:
+                    logger.info(f"Successfully opened camera at index {camera_index}")
+                    break
+                else:
+                    cap.release()
+                    cap = None
+        except Exception as e:
+            logger.warning(f"Failed to open camera at index {camera_index}: {e}")
+            if cap:
+                cap.release()
+                cap = None
 
-# Initializing variables and capturing video
-root = Tk()
-root.title("SQUAT COUNTER")
-root.geometry('500x400+268+82')
-root.configure(bg="#000000")  # Set background color to black
+    if not cap:
+        return {"count": 0, "feedback": "Could not open any camera"}
 
-# Creating the Tkinter window
-f1 = LabelFrame(root, bg="#000000")  # Change label frame background to black
-f1.place(relx=0.5, rely=0.5)
+    # Initialize pose detection with higher confidence thresholds
+    pose = md_pose.Pose(
+        min_detection_confidence=0.7,
+        min_tracking_confidence=0.8,
+        model_complexity=1
+    )
 
-label = Label(root, text="Squat Count: 0", font=("Arial", 24, "bold"), bg="#000000", fg="#FFFFFF")  # Update label colors
-label.pack(pady=10)
+    try:
+        consecutive_failures = 0
+        while time.time() - start_time < timeout:
+            success, image = cap.read()
+            if not success:
+                consecutive_failures += 1
+                if consecutive_failures > 5:
+                    return {"count": count, "feedback": "Failed to read from camera consistently"}
+                continue
+            consecutive_failures = 0
 
-# Creating a label for displaying video
-video_label = Label(root, bg="#000000")  # Set background to black
-video_label.pack()
+            # Process frame
+            image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
+            image.flags.writeable = False
+            result = pose.process(image)
+            image.flags.writeable = True
 
-def close():
-    root.destroy()
+            if result.pose_landmarks:
+                landmarks = result.pose_landmarks.landmark
+                
+                # Get hip, knee, and ankle landmarks
+                left_hip = landmarks[md_pose.PoseLandmark.LEFT_HIP]
+                right_hip = landmarks[md_pose.PoseLandmark.RIGHT_HIP]
+                left_knee = landmarks[md_pose.PoseLandmark.LEFT_KNEE]
+                right_knee = landmarks[md_pose.PoseLandmark.RIGHT_KNEE]
+                left_ankle = landmarks[md_pose.PoseLandmark.LEFT_ANKLE]
+                right_ankle = landmarks[md_pose.PoseLandmark.RIGHT_ANKLE]
+                
+                # Calculate knee angles
+                left_angle = math.degrees(math.atan2(
+                    left_ankle.y - left_knee.y,
+                    left_ankle.x - left_knee.x
+                ) - math.atan2(
+                    left_hip.y - left_knee.y,
+                    left_hip.x - left_knee.x
+                ))
+                right_angle = math.degrees(math.atan2(
+                    right_ankle.y - right_knee.y,
+                    right_ankle.x - right_knee.x
+                ) - math.atan2(
+                    right_hip.y - right_knee.y,
+                    right_hip.x - right_knee.x
+                ))
+                
+                # Check form and provide feedback
+                if abs(left_angle - right_angle) > 15:
+                    form_status = "warning"
+                    last_feedback = "Keep your knees aligned"
+                elif left_angle > 160 and right_angle > 160:
+                    if position != "up":
+                        position = "up"
+                        if form_status == "good":
+                            last_feedback = "Good form! Now go down slowly"
+                        else:
+                            last_feedback = "Fix your form before continuing"
+                elif left_angle < 90 and right_angle < 90:
+                    if position == "up":
+                        if form_status == "good":
+                            position = "down"
+                            count += 1
+                            last_feedback = f"Great! {count} squats completed. Keep going!"
+                        else:
+                            last_feedback = "Fix your form before continuing"
+                else:
+                    form_status = "good"
+                    if position == "up":
+                        last_feedback = "Go lower for a proper squat"
+                    elif position == "down":
+                        last_feedback = "Stand up straight"
 
-# Function to close the application
-Button(f1, text="Exit the Application", bg='#FFFFFF', fg='red', font=("Calibri", 14, "bold"), command=close).place(relx=0.5, rely=0.8, anchor="center")  # Center the exit button
+            else:
+                last_feedback = "Cannot detect body position. Please ensure you're visible in the camera"
 
-# Initializing the Pose object for pose estimation
-pose = md_pose.Pose(
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.7
-)
+            # Break if we've counted 10 squats
+            if count >= 10:
+                return {"count": count, "feedback": "Great job! You've completed your squats!"}
 
-def update_squat():
-    global count
-    label.config(text=f"SQUAT: {count}")
-    if count >= 10:  # You can change the limit if needed
-        close()
-    else:
-        label.after(1000, update_squat)
+            # Add a small delay to prevent high CPU usage
+            time.sleep(0.1)
 
-# Function to update the squat count every second
-def process_frame():
-    global position, count
+        # If we hit the timeout
+        if count > 0:
+            return {"count": count, "feedback": f"Time's up! You completed {count} squats. {last_feedback}"}
+        else:
+            return {"count": 0, "feedback": "No squats detected. Please ensure you're visible in the camera"}
 
-    success, image = cap.read()
-    if not success:
-        print("Empty Camera")
-        return
+    except Exception as e:
+        logger.error(f"Error during squat detection: {str(e)}")
+        return {"count": count, "feedback": f"Error: {str(e)}"}
+    finally:
+        if cap:
+            cap.release()
+        cv2.destroyAllWindows()
 
-    image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
-    result = pose.process(image)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-    imlist = []
-
-    if result.pose_landmarks:
-        md_drawing.draw_landmarks(
-            image, result.pose_landmarks, md_pose.POSE_CONNECTIONS,
-            landmark_drawing_spec=md_drawing_style.get_default_pose_landmarks_style()
-        )
-        for id, im in enumerate(result.pose_landmarks.landmark):
-            h, w, _ = image.shape
-            X, Y = int(im.x * w), int(im.y * h)
-            imlist.append([id, X, Y])
-
-    if len(imlist) != 0:
-        # Squat detection logic
-        if imlist[11][2] >= imlist[23][2] and imlist[12][2] >= imlist[24][2]:  # Down position
-            position = "down"
-        if position == "down" and imlist[11][2] < imlist[23][2] and imlist[12][2] < imlist[24][2]:  # Up position
-            position = "up"
-            count += 1
-            print(count)
-
-    frame = ImageTk.PhotoImage(Image.fromarray(image))
-    video_label.config(image=frame)
-    video_label.image = frame
-
-    root.after(1, process_frame)
-
-update_squat()
-process_frame()
-
-# Updating the squat count and processing video frames
-root.mainloop()
-
-cap.release()
-cv2.destroyAllWindows()
+if __name__ == "__main__":
+    result = count_exercise()
+    print(result)

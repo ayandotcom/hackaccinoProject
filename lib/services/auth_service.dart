@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = 'https://10.81.32.74:5001';  // Update with your HTTPS URL
+  static const String baseUrl = 'http://localhost:5001';  // Updated to use port 5001
   static const String tokenKey = 'auth_token';
   
-  static Future<String?> login(String username, String password) async {
+  Future<bool> login(String username, String password) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/login'),
@@ -18,35 +18,35 @@ class AuthService {
       if (response.statusCode == 200) {
         final token = jsonDecode(response.body)['token'];
         await _saveToken(token);
-        return token;
+        return true;
       }
-      return null;
+      return false;
     } catch (e) {
       print('Login error: $e');
-      return null;
+      return false;
     }
   }
 
-  static Future<void> logout() async {
+  Future<void> logout() async {
     await _removeToken();
   }
 
-  static Future<String?> getToken() async {
+  Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(tokenKey);
   }
 
-  static Future<void> _saveToken(String token) async {
+  Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(tokenKey, token);
   }
 
-  static Future<void> _removeToken() async {
+  Future<void> _removeToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(tokenKey);
   }
 
-  static Future<Map<String, String>> getAuthHeaders() async {
+  Future<Map<String, String>> getAuthHeaders() async {
     final token = await getToken();
     return {
       'Authorization': 'Bearer $token',
@@ -55,10 +55,10 @@ class AuthService {
   }
 
   // Secure HTTP client for making authenticated requests
-  static Future<http.Response> authenticatedGet(String endpoint) async {
+  Future<http.Response> authenticatedGet(String endpoint) async {
     final headers = await getAuthHeaders();
     final response = await http.get(
-      Uri.parse('$baseUrl$endpoint'),
+      Uri.parse(endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint'),
       headers: headers,
     );
     
@@ -71,10 +71,10 @@ class AuthService {
     return response;
   }
 
-  static Future<http.Response> authenticatedPost(String endpoint, {Map<String, dynamic>? body}) async {
+  Future<http.Response> authenticatedPost(String endpoint, {Map<String, dynamic>? body}) async {
     final headers = await getAuthHeaders();
     final response = await http.post(
-      Uri.parse('$baseUrl$endpoint'),
+      Uri.parse(endpoint.startsWith('http') ? endpoint : '$baseUrl$endpoint'),
       headers: headers,
       body: body != null ? jsonEncode(body) : null,
     );

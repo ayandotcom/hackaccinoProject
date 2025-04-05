@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'dart:ui_web' as ui_web;
 import 'package:http/http.dart' as http;
 
 class StrengthtrainingPage extends StatefulWidget {
@@ -46,6 +47,7 @@ class _StrengthtrainingPageState extends State<StrengthtrainingPage> {
   void _showWorkoutCompletedDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,  // Prevent dismissing by tapping outside
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Workout Completed'),
@@ -53,8 +55,8 @@ class _StrengthtrainingPageState extends State<StrengthtrainingPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // This will pop the dialog
-                Navigator.pop(context); // This will pop the CardioPage and go back
+                Navigator.of(context).pop();  // Pop the dialog
+                Navigator.of(context).maybePop();  // Safely try to pop the page
               },
               child: Text('Okay'),
             ),
@@ -68,14 +70,14 @@ class _StrengthtrainingPageState extends State<StrengthtrainingPage> {
     String url;
     if (currentVideoIndex == 0) {
       // For the first video (Pushups)
-      url = 'http:// 10.81.32.74:5002/pushups'; // Replace with your Flask URL for pushups
+      url = 'http://localhost:5001/pushups';
     } else {
       // For the subsequent videos (Squats)
-      url = 'http:// 10.81.32.74:5002/squats'; // Replace with your Flask URL for squats
+      url = 'http://localhost:5001/squats';
     }
 
     try {
-      final response = await http.post(Uri.parse(url));
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         // Handle the response if needed
         print('Workout started successfully: ${currentVideoIndex == 0 ? "Pushups" : "Squats"}');

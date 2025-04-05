@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'dart:ui_web' as ui_web;
 import 'dart:convert';
 import 'services/auth_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:async';
 
 class CardioPage extends StatefulWidget {
   @override
@@ -10,8 +13,13 @@ class CardioPage extends StatefulWidget {
 
 class _CardioPageState extends State<CardioPage> {
   final _controller = YoutubePlayerController();
+  final _authService = AuthService();
   bool _isLoading = false;
   String _errorMessage = '';
+  String _exerciseCount = '';
+  String _formFeedback = '';
+  Timer? _exerciseTimer;
+  bool _isExercising = false;
 
   // Video IDs
   final List<String> videoIds = ["XPU9K9QM7ME", "auBLPXO8Fww", "L8fvypPrzzs", "S7HEm-fd534"];
@@ -45,16 +53,18 @@ class _CardioPageState extends State<CardioPage> {
 
   Future<void> _startVideo() async {
     _clearError();
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _isExercising = true;
+    });
 
     try {
-      // Start the video first
       await _controller.playVideo();
-
-      // Then send the request to start the workout
       await _sendStartWorkoutRequest();
+      _startExerciseTracking();
     } catch (e) {
       _setError('Failed to start workout: $e');
+      _isExercising = false;
     } finally {
       setState(() => _isLoading = false);
     }
@@ -62,6 +72,41 @@ class _CardioPageState extends State<CardioPage> {
 
   void _stopVideo() {
     _controller.pauseVideo();
+    _stopExerciseTracking();
+    setState(() {
+      _isExercising = false;
+    });
+  }
+
+  void _startExerciseTracking() {
+    _exerciseTimer?.cancel();
+    _exerciseTimer = Timer.periodic(Duration(seconds: 1), (timer) async {
+      if (!_isExercising) {
+        timer.cancel();
+        return;
+      }
+      await _updateExerciseStatus();
+    });
+  }
+
+  void _stopExerciseTracking() {
+    _exerciseTimer?.cancel();
+    _exerciseTimer = null;
+  }
+
+  Future<void> _updateExerciseStatus() async {
+    try {
+      final response = await http.get(Uri.parse('http://localhost:5001/status'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _exerciseCount = data['count'].toString();
+          _formFeedback = data['feedback'] ?? '';
+        });
+      }
+    } catch (e) {
+      print('Error updating exercise status: $e');
+    }
   }
 
   Future<void> _nextVideo() async {
@@ -78,7 +123,7 @@ class _CardioPageState extends State<CardioPage> {
   void _showWorkoutCompletedDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: false,  // Prevent dismissing by tapping outside
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Workout Completed'),
@@ -86,8 +131,8 @@ class _CardioPageState extends State<CardioPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Pop dialog
-                Navigator.pop(context); // Pop CardioPage
+                Navigator.of(context).pop();  // Pop the dialog
+                Navigator.of(context).maybePop();  // Safely try to pop the page
               },
               child: Text('Okay'),
             ),
@@ -99,7 +144,7 @@ class _CardioPageState extends State<CardioPage> {
 
   Future<void> _sendStartWorkoutRequest() async {
     try {
-      final response = await AuthService.authenticatedGet('/jumpingjacks');
+      final response = await http.get(Uri.parse('http://localhost:5001/jumpingjacks'));
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -124,6 +169,7 @@ class _CardioPageState extends State<CardioPage> {
 
   @override
   void dispose() {
+    _exerciseTimer?.cancel();
     _controller.close();
     super.dispose();
   }
@@ -137,52 +183,129 @@ class _CardioPageState extends State<CardioPage> {
       ),
       body: Container(
         color: Colors.black,
-        child: Center(
-          child: Column(
-            children: [
-              if (_errorMessage.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    _errorMessage,
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ),
-              Expanded(
-                child: Container(
-                  width: 300,
-                  height: 200,
-                  child: YoutubePlayer(
-                    controller: _controller,
-                    aspectRatio: 16 / 9,
-                  ),
+        child: Column(
+          children: [
+            if (_errorMessage.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  _errorMessage,
+                  style: TextStyle(color: Colors.red),
                 ),
               ),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            Expanded(
+              child: Row(
                 children: [
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _startVideo,
-                    child: _isLoading
-                        ? CircularProgressIndicator()
-                        : Text('Start'),
+                  // Tutorial video
+                  Expanded(
+                    child: Container(
+                      child: YoutubePlayer(
+                        controller: _controller,
+                        aspectRatio: 16 / 9,
+                      ),
+                    ),
                   ),
-                  SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: _stopVideo,
-                    child: Text('Stop'),
-                  ),
-                  SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: _nextVideo,
-                    child: Text('Next'),
-                  ),
+                  // Camera feed and exercise info
+                  if (_isExercising)
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            // Camera feed
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.white),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    'http://localhost:5001/video_feed',
+                                    fit: BoxFit.contain,
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Center(
+                                        child: Text(
+                                          'Camera feed unavailable',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            // Exercise counter and feedback
+                            Container(
+                              padding: EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white10,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Reps: $_exerciseCount',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (_formFeedback.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Text(
+                                        _formFeedback,
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 16,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              SizedBox(height: 20),
-            ],
-          ),
+            ),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _startVideo,
+                  child: _isLoading
+                      ? CircularProgressIndicator()
+                      : Text('Start'),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: _stopVideo,
+                  child: Text('Stop'),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: _nextVideo,
+                  child: Text('Next'),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+          ],
         ),
       ),
     );

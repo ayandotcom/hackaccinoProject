@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart'; // Import Lottie
-import 'package:firebase_ui_auth/firebase_ui_auth.dart'; // Import Firebase Auth UI
 import 'workout_page.dart'; // Import the WorkoutPage
 import 'yoga_page.dart'; // Import the YogaPage
 import 'chat_bot.dart'; // Import the ChatbotWidget
 import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'auth_gate.dart';
 
 class ProfiScreen extends StatelessWidget {
   const ProfiScreen({super.key});
@@ -106,7 +106,32 @@ class ProfiScreen extends StatelessWidget {
             const SizedBox(height: 40), // Spacing before sign-out button
 
             // Sign out button
-            const SignOutButton(),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const AuthGate()),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                backgroundColor: Colors.red[800],
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: const BorderSide(color: Colors.transparent),
+                ),
+              ),
+              child: const Text(
+                'SIGN OUT',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: 2.5,
+                ),
+              ),
+            ),
             const SizedBox(height: 20), // Extra spacing at the bottom
           ],
         ),
@@ -114,37 +139,37 @@ class ProfiScreen extends StatelessWidget {
       
       // Floating Action Button for Chatbot with large animation and separate button
       floatingActionButton: Padding(
-  padding: const EdgeInsets.only(bottom: 20.0, right: 20.0), // Adjust position
-  child: Column(
-    mainAxisSize: MainAxisSize.min, // Minimize vertical space
-    children: [
-      Container(
-        width: 150, // Larger size for the animation container
-        height: 150,
-        child: Lottie.asset(
-          'assets/chatbot_animation.json',
-          width: 200, // Increase the size of the Lottie animation
-          height: 200,
+        padding: const EdgeInsets.only(bottom: 20.0, right: 20.0), // Adjust position
+        child: Column(
+          mainAxisSize: MainAxisSize.min, // Minimize vertical space
+          children: [
+            Container(
+              width: 150, // Larger size for the animation container
+              height: 150,
+              child: Lottie.asset(
+                'assets/chatbot_animation.json',
+                width: 200, // Increase the size of the Lottie animation
+                height: 200,
+              ),
+            ),
+            // Remove SizedBox to ensure no gap between animation and button
+            FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ChatbotWidget()),
+                );
+              },
+              backgroundColor: Colors.black,
+              label: const Text(
+                "How may I help you?",
+                style: TextStyle(fontSize: 16, color: Colors.white), // Larger button text
+              ),
+              icon: const Icon(Icons.chat),
+            ),
+          ],
         ),
       ),
-      // Remove SizedBox to ensure no gap between animation and button
-      FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ChatbotWidget()),
-          );
-        },
-        backgroundColor: Colors.black,
-        label: const Text(
-          "How may I help you?",
-          style: TextStyle(fontSize: 16, color: Colors.white), // Larger button text
-        ),
-        icon: const Icon(Icons.chat),
-      ),
-    ],
-  ),
-),
     );
   }
 }

@@ -1,47 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:animated_background/animated_background.dart'; // Import for animation
 import 'home_page.dart'; // Create this file later
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';  // Make sure this file exists
 import 'app.dart'; // Create this file later
-import 'services/config_service.dart';
 import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize secure configuration
-  await ConfigService.initializeConfig();
-  
-  // Initialize Firebase with secure configuration
-  await Firebase.initializeApp(
-    options: FirebaseOptions(
-      apiKey: (await ConfigService.getConfigValue(ConfigService.firebaseApiKey))!,
-      appId: (await ConfigService.getConfigValue(ConfigService.firebaseAppId))!,
-      projectId: (await ConfigService.getConfigValue(ConfigService.firebaseProjectId))!,
-      messagingSenderId: '1013360504179',
-      storageBucket: 'fitflow-3bc6b.appspot.com',
-      authDomain: 'fitflow-3bc6b.firebaseapp.com',
-    ),
-  );
-
-  // Enable certificate pinning in release mode
-  if (!kDebugMode) {
-    // Initialize SSL pinning
-    await initializeSSLPinning();
-  }
-
-  // runApp(FitnFlowApp());
   runApp(const MyApp());
 }
 
-Future<void> initializeSSLPinning() async {
-  // Initialize SSL certificate pinning
-  final certificates = ConfigService.getTrustedCertificates();
-  
-  // You would typically use a package like 'ssl_pinning_plugin' here
-  // This is a placeholder for the actual implementation
-  print('SSL Pinning initialized with ${certificates.length} certificates');
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'FitFlow',
+      theme: ThemeData(
+        primarySwatch: Colors.purple,
+        scaffoldBackgroundColor: Colors.black,
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.white),
+          bodyMedium: TextStyle(color: Colors.white),
+        ),
+      ),
+      home: HomePage(),
+    );
+  }
 }
 
 // class FitnFlowApp extends StatelessWidget {

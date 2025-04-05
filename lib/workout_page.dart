@@ -1,4 +1,4 @@
-import 'package:fir_n_flow/strength_training.dart';
+import 'package:fitflow/pages/strength_training.dart';
 import 'package:flutter/material.dart';
 import 'cardio_page.dart';
 import 'hiit_page.dart';

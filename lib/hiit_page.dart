@@ -1,6 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'dart:ui_web' as ui_web;
 import 'package:http/http.dart' as http;
 
 
@@ -49,6 +49,7 @@ class _HIITPageState extends State<HIITPage> {
   void _showWorkoutCompletedDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,  // Prevent dismissing by tapping outside
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Workout Completed'),
@@ -56,8 +57,8 @@ class _HIITPageState extends State<HIITPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // This will pop the dialog
-                Navigator.pop(context); // This will pop the CardioPage and go back
+                Navigator.of(context).pop();  // Pop the dialog
+                Navigator.of(context).maybePop();  // Safely try to pop the page
               },
               child: Text('Okay'),
             ),
@@ -70,18 +71,18 @@ class _HIITPageState extends State<HIITPage> {
   Future<void> _sendStartWorkoutRequest() async {
     String url;
     if (currentVideoIndex == 0) {
-      // For the first video (Pushups)
-      url = 'http:// 10.81.32.74:5002/jumpingjacks'; // Replace with your Flask URL for pushups
+      // For the first video (Jumping Jacks)
+      url = 'http://localhost:5001/jumpingjacks';
     } else {
       // For the subsequent videos (Squats)
-      url = 'http:// 10.81.32.74:5002/squats'; // Replace with your Flask URL for squats
+      url = 'http://localhost:5001/squats';
     }
 
     try {
-      final response = await http.post(Uri.parse(url));
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         // Handle the response if needed
-        print('Workout started successfully: ${currentVideoIndex == 0 ? "Pushups" : "Squats"}');
+        print('Workout started successfully: ${currentVideoIndex == 0 ? "Jumping Jacks" : "Squats"}');
       } else {
         // Handle the error
         print('Failed to start workout: ${response.body}');

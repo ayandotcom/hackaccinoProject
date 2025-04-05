@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'services/auth_service.dart';
 
 class TreePosePage extends StatelessWidget {
+  final _authService = AuthService();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,7 +71,7 @@ class TreePosePage extends StatelessWidget {
   // Function to run the Tree_pose.py script
   void _runTreePoseScript() async {
     try {
-      final response = await http.get(Uri.parse('http://10.81.32.74:5004/Tree_pose'));
+      final response = await _authService.authenticatedGet('http://localhost:5000/tree_pose');
       
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);

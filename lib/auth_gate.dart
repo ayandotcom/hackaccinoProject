@@ -1,159 +1,132 @@
-// import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
-// import 'package:firebase_ui_auth/firebase_ui_auth.dart';
-// import 'package:flutter/material.dart';
-
-// import 'profile.dart';
-
-// class AuthGate extends StatelessWidget {
-//   const AuthGate({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return StreamBuilder<User?>(
-//       stream: FirebaseAuth.instance.authStateChanges(),
-//       builder: (context, snapshot) {
-//         if (!snapshot.hasData) {
-//           return SignInScreen(
-//             providers: [
-//                 EmailAuthProvider(),
-//             ],
-//         //      headerBuilder: (context, constraints, shrinkOffset) {
-//         //      return Padding(
-//         //        padding: const EdgeInsets.all(20),
-//         //        child: AspectRatio(
-//         //          aspectRatio: 1,
-//         //          child: Image.asset('assets/profile.jpg'),
-//         //        ),
-//         //      );
-//         //    },
-//            subtitleBuilder: (context, action) {
-//              return Padding(
-//                padding: const EdgeInsets.symmetric(vertical: 8.0),
-//               // child: Center(
-//                child: action == AuthAction.signIn
-//                    ? const Text('Welcome to FitFlow, please sign in!')
-//                    : const Text('Welcome to FitFlow, please sign up!'),
-//               // ),
-//              );
-//            },
-//            footerBuilder: (context, action) {
-//              return const Padding(
-//                padding: EdgeInsets.only(top: 16),
-//                child: Text(
-//                  'By signing in, you agree to our terms and conditions.',
-//                  style: TextStyle(color: Colors.grey),
-//                ),
-//              );
-//            },
-//         //    sideBuilder: (context, shrinkOffset) {
-//         //      return Padding(
-//         //        padding: const EdgeInsets.all(20),
-//         //        child: AspectRatio(
-//         //          aspectRatio: 1,
-//         //          child: Image.asset('assests/profile.jpg'),
-//         //        ),
-//         //      );
-//         //    },
-//           );
-//         }
-
-//         return const ProfiScreen();
-//       },
-//     );
-//   }
-// }
-
-
-
-
-import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
-import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:flutter/material.dart';
-
 import 'profile.dart';
+import 'services/auth_service.dart';
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _isLoggedIn = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      final success = await AuthService().login(
+        _emailController.text,
+        _passwordController.text,
+      );
+      if (success) {
+        setState(() => _isLoggedIn = true);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Login failed')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoggedIn) {
+      return const ProfiScreen();
+    }
+
     return MaterialApp(
-      theme: ThemeData.dark().copyWith(  // Applying dark theme
-        scaffoldBackgroundColor: Colors.black,  // Set background to black
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
         primaryColor: Colors.white,
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.grey[800],  // Dark background for input fields
-          hintStyle: TextStyle(color: Colors.white),
+          fillColor: Colors.grey[800],
+          hintStyle: const TextStyle(color: Colors.white),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8.0),
-            borderSide: BorderSide(color: Colors.white),
+            borderSide: const BorderSide(color: Colors.white),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8.0),
-            borderSide: BorderSide(color: Colors.white),
+            borderSide: const BorderSide(color: Colors.white),
           ),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.white),  // Use bodyLarge instead of bodyText1
-          bodyMedium: TextStyle(color: Colors.white),  // Use bodyMedium instead of bodyText2
+          bodyLarge: TextStyle(color: Colors.white),
+          bodyMedium: TextStyle(color: Colors.white),
         ),
       ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return SignInScreen(
-              providers: [
-                EmailAuthProvider(),
-              ],
-              headerBuilder: (context, constraints, shrinkOffset) {
-                return Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Center(
-                    child: Text(
-                      'Fit N Flow',
-                      style: TextStyle(
-                        fontSize: 35,
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.bold,              
-                        color: Colors.white,
-                        letterSpacing: 2,  // White title text
-                      ),
-                    ),
-                  ),
-                );
-              },
-              subtitleBuilder: (context, action) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Center(
-                    child: action == AuthAction.signIn
-                        ? const Text(
-                            'Welcome to Fit N Flow, please sign in!',
-                            style: TextStyle(color: Colors.white),  // White subtitle text
-                          )
-                        : const Text(
-                            'Welcome to Fit N Flow, please sign up!',
-                            style: TextStyle(color: Colors.white),  // White subtitle text
-                          ),
-                  ),
-                );
-              },
-              footerBuilder: (context, action) {
-                return const Padding(
-                  padding: EdgeInsets.only(top: 16),
-                  child: Text(
-                    'By signing in, you agree to our terms and conditions.',
-                    style: TextStyle(color: Colors.grey),  // Grey footer text
-                  ),
-                );
-              },
-            );
-          }
-
-          return const ProfiScreen();  // Your profile screen after login
-        },
+      home: Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Fit N Flow',
+                style: TextStyle(
+                  fontSize: 35,
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 30),
+              TextField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  hintText: 'Enter your email',
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  hintText: 'Enter your password',
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _handleLogin,
+                child: _isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text('Login'),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'By signing in, you agree to our terms and conditions.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
