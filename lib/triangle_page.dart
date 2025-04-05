@@ -70,7 +70,7 @@ class TrianglePage extends StatelessWidget {
   // Function to run the Triangle_pose.py script
   void _runTrianglePoseScript() async {
     try {
-      final response = await _authService.authenticatedGet('http://localhost:5000/triangle_pose');
+      final response = await _authService.authenticatedGet('http://localhost:5001/triangle_pose');
       
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);

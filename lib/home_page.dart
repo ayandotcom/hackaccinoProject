@@ -6,7 +6,7 @@ import 'chat_bot.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  const HomePage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +16,7 @@ class HomePage extends StatelessWidget {
         height: double.infinity,
         decoration: BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/Circuit_Training.jpeg'),
+            image: AssetImage('assets/fitness_background.jpg'),
             fit: BoxFit.cover,
             alignment: Alignment.center,
           ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
-import 'dart:ui_web' as ui_web;
 import 'package:http/http.dart' as http;
+import 'dart:async';
 
 
 class HIITPage extends StatefulWidget {
@@ -11,16 +11,53 @@ class HIITPage extends StatefulWidget {
 
 
 class _HIITPageState extends State<HIITPage> {
-  final _controller = YoutubePlayerController();
+  late final YoutubePlayerController _controller;
+  bool _isLoading = false;
+  String _errorMessage = '';
+  String _exerciseCount = '';
+  String _formFeedback = '';
+  Timer? _exerciseTimer;
+  bool _isExercising = false;
 
-  // Video IDs
-  final List<String> videoIds = ["XPU9K9QM7ME","VtOYc6j5c", "vUnqwqqI", "op9kVnSso6Q", "hHdD5Ksdnmk", "_l3ySVKYVJ8"];
+  // Video IDs and exercise types
+  final List<Map<String, String>> exercises = [
+    {"id": "XPU9K9QM7ME", "type": "pushups"},
+    {"id": "VtOYc6j5c", "type": "squats"},
+    {"id": "vUnqwqqI", "type": "plank"},
+    {"id": "op9kVnSso6Q", "type": "tree_pose"},
+    {"id": "hHdD5Ksdnmk", "type": "triangle_pose"},
+    {"id": "_l3ySVKYVJ8", "type": "yoga"}
+  ];
   int currentVideoIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _controller.loadVideoById(videoId: videoIds[currentVideoIndex]);
+    _controller = YoutubePlayerController(
+      params: YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+        strictRelatedVideos: true,
+        enableJavaScript: true,
+        playsInline: false,
+        showVideoAnnotations: false,
+      ),
+    );
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      await _controller.loadVideoById(videoId: exercises[currentVideoIndex]["id"]!);
+    } catch (e) {
+      _setError('Failed to load video: $e');
+    }
+  }
+
+  void _setError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
   }
 
   void _startVideo() async {
@@ -36,13 +73,13 @@ class _HIITPageState extends State<HIITPage> {
   }
 
   void _nextVideo() {
-    if (currentVideoIndex < videoIds.length - 1) {
+    if (currentVideoIndex < exercises.length - 1) {
       currentVideoIndex++;
     } else {
       _showWorkoutCompletedDialog();
       return; // Prevent loading the next video if workout is completed
     }
-    _controller.loadVideoById(videoId: videoIds[currentVideoIndex]);
+    _initializeVideo();
     // Don't start the video immediately here, wait for user to press start
   }
 
@@ -53,7 +90,7 @@ class _HIITPageState extends State<HIITPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Workout Completed'),
-          content: Text('Great job! You have completed this exercise.'),
+          content: Text('Great job! You have completed all exercises.'),
           actions: [
             TextButton(
               onPressed: () {
@@ -69,22 +106,14 @@ class _HIITPageState extends State<HIITPage> {
   }
 
   Future<void> _sendStartWorkoutRequest() async {
-    String url;
-    if (currentVideoIndex == 0) {
-      // For the first video (Jumping Jacks)
-      url = 'http://localhost:5001/jumpingjacks';
-    } else {
-      // For the subsequent videos (Squats)
-      url = 'http://localhost:5001/squats';
-    }
+    String exerciseType = exercises[currentVideoIndex]["type"]!;
+    String url = 'http://localhost:5001/$exerciseType';
 
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        // Handle the response if needed
-        print('Workout started successfully: ${currentVideoIndex == 0 ? "Jumping Jacks" : "Squats"}');
+        print('Workout started successfully: $exerciseType');
       } else {
-        // Handle the error
         print('Failed to start workout: ${response.body}');
       }
     } catch (error) {
@@ -103,42 +132,69 @@ class _HIITPageState extends State<HIITPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('High Interval Strength Training Workouts'),
+        backgroundColor: Color.fromARGB(255, 77, 0, 80),
       ),
-      body: Center(
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                width: 300,
-                height: 200,
-                child: YoutubePlayer(
-                  controller: _controller,
-                  aspectRatio: 16 / 9,
+      body: Container(
+        color: Colors.black,
+        child: Center(
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.5,
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    child: YoutubePlayer(
+                      controller: _controller,
+                      aspectRatio: 16 / 9,
+                    ),
+                  ),
                 ),
               ),
-            ),
-            SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: _startVideo,
-                  child: Text('Start'),
+              SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: _startVideo,
+                    child: Text('Start'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _stopVideo,
+                    child: Text('Stop'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _nextVideo,
+                    child: Text('Next'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 20),
+              if (_errorMessage.isNotEmpty)
+                Text(
+                  _errorMessage,
+                  style: TextStyle(color: Colors.red),
                 ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _stopVideo,
-                  child: Text('Stop'),
-                ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _nextVideo,
-                  child: Text('Next'),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-          ],
+            ],
+          ),
         ),
       ),
     );

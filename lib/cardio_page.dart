@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
-import 'dart:ui_web' as ui_web;
 import 'dart:convert';
 import 'services/auth_service.dart';
 import 'package:http/http.dart' as http;
@@ -12,7 +11,7 @@ class CardioPage extends StatefulWidget {
 }
 
 class _CardioPageState extends State<CardioPage> {
-  final _controller = YoutubePlayerController();
+  late final YoutubePlayerController _controller;
   final _authService = AuthService();
   bool _isLoading = false;
   String _errorMessage = '';
@@ -28,6 +27,16 @@ class _CardioPageState extends State<CardioPage> {
   @override
   void initState() {
     super.initState();
+    _controller = YoutubePlayerController(
+      params: YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+        strictRelatedVideos: true,
+        enableJavaScript: true,
+        playsInline: false,
+        showVideoAnnotations: false,
+      ),
+    );
     _initializeVideo();
   }
 
@@ -51,7 +60,7 @@ class _CardioPageState extends State<CardioPage> {
     });
   }
 
-  Future<void> _startVideo() async {
+  void _startVideo() {
     _clearError();
     setState(() {
       _isLoading = true;
@@ -59,8 +68,7 @@ class _CardioPageState extends State<CardioPage> {
     });
 
     try {
-      await _controller.playVideo();
-      await _sendStartWorkoutRequest();
+      _controller.playVideo();
       _startExerciseTracking();
     } catch (e) {
       _setError('Failed to start workout: $e');
@@ -199,9 +207,14 @@ class _CardioPageState extends State<CardioPage> {
                   // Tutorial video
                   Expanded(
                     child: Container(
-                      child: YoutubePlayer(
-                        controller: _controller,
-                        aspectRatio: 16 / 9,
+                      padding: EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width * 0.5,
+                        height: MediaQuery.of(context).size.height * 0.6,
+                        child: YoutubePlayer(
+                          controller: _controller,
+                          aspectRatio: 16 / 9,
+                        ),
                       ),
                     ),
                   ),

@@ -169,15 +169,23 @@ def count_exercise():
     if not cap:
         return {"count": 0, "feedback": "Could not open any camera"}
 
-    # Initialize pose detection with higher confidence thresholds
+    # Initialize pose detection with balanced confidence thresholds
     pose = md_pose.Pose(
-        min_detection_confidence=0.7,
-        min_tracking_confidence=0.8,
+        min_detection_confidence=0.6,
+        min_tracking_confidence=0.6,
         model_complexity=1
     )
 
     try:
         consecutive_failures = 0
+        last_valid_pose_time = time.time()
+        min_time_between_reps = 0.8  # Increased minimum time between reps
+        last_position_time = time.time()
+        position_hold_time = 0.3  # Time required to hold a position
+        current_pose = None
+        pose_start_time = None
+        max_pose_duration = 30  # Maximum pose duration in seconds
+
         while time.time() - start_time < timeout:
             success, image = cap.read()
             if not success:
@@ -194,38 +202,89 @@ def count_exercise():
             image.flags.writeable = True
 
             if result.pose_landmarks:
-                # Detect current pose
-                pose_result = detect_pose(result.pose_landmarks.landmark, "tree")  # Default to tree pose
+                landmarks = result.pose_landmarks.landmark
                 
-                if pose_result["is_correct"]:
-                    if current_pose != "tree":
-                        current_pose = "tree"
-                        pose_hold_time = time.time()
-                    elif time.time() - pose_hold_time >= required_hold_time:
-                        count += 1
-                        last_feedback = f"Great! {count} poses completed. Hold for {required_hold_time} seconds each."
-                        current_pose = None
+                # Get key landmarks for yoga poses
+                left_shoulder = landmarks[md_pose.PoseLandmark.LEFT_SHOULDER]
+                right_shoulder = landmarks[md_pose.PoseLandmark.RIGHT_SHOULDER]
+                left_hip = landmarks[md_pose.PoseLandmark.LEFT_HIP]
+                right_hip = landmarks[md_pose.PoseLandmark.RIGHT_HIP]
+                left_knee = landmarks[md_pose.PoseLandmark.LEFT_KNEE]
+                right_knee = landmarks[md_pose.PoseLandmark.RIGHT_KNEE]
+                left_ankle = landmarks[md_pose.PoseLandmark.LEFT_ANKLE]
+                right_ankle = landmarks[md_pose.PoseLandmark.RIGHT_ANKLE]
+                left_elbow = landmarks[md_pose.PoseLandmark.LEFT_ELBOW]
+                right_elbow = landmarks[md_pose.PoseLandmark.RIGHT_ELBOW]
+                left_wrist = landmarks[md_pose.PoseLandmark.LEFT_WRIST]
+                right_wrist = landmarks[md_pose.PoseLandmark.RIGHT_WRIST]
+                
+                # Calculate angles with smoothing
+                back_angle = abs(math.degrees(math.atan2(
+                    (right_shoulder.y + left_shoulder.y) / 2 - (right_hip.y + left_hip.y) / 2,
+                    (right_shoulder.x + left_shoulder.x) / 2 - (right_hip.x + left_hip.x) / 2
+                )))
+                
+                # Calculate relative heights
+                shoulder_height = (left_shoulder.y + right_shoulder.y) / 2
+                hip_height = (left_hip.y + right_hip.y) / 2
+                knee_height = (left_knee.y + right_knee.y) / 2
+                ankle_height = (left_ankle.y + right_ankle.y) / 2
+
+                current_time = time.time()
+
+                # More forgiving yoga pose detection with hold time requirement
+                if (back_angle < 15 and  # More forgiving back angle
+                    abs(shoulder_height - hip_height) < 0.15 and  # More forgiving alignment
+                    abs(hip_height - knee_height) < 0.15):  # More forgiving hip position
+                    if current_pose != "yoga":
+                        if current_time - last_position_time >= position_hold_time:
+                            current_pose = "yoga"
+                            if pose_start_time is None:
+                                pose_start_time = current_time
+                            last_feedback = "Good form! Hold the pose"
+                            form_status = "good"
+                            last_valid_pose_time = current_time
+                    last_position_time = current_time
                 else:
-                    last_feedback = pose_result["feedback"]
-                    current_pose = None
+                    last_position_time = current_time  # Reset hold time
+                    # Provide specific form feedback with more forgiving thresholds
+                    if back_angle >= 15:
+                        last_feedback = "Try to keep your back straighter"
+                        form_status = "warning"
+                    elif abs(shoulder_height - hip_height) >= 0.15:
+                        last_feedback = "Keep your shoulders and hips aligned"
+                        form_status = "warning"
+                    elif abs(hip_height - knee_height) >= 0.15:
+                        last_feedback = "Keep your hips level"
+                        form_status = "warning"
+                    else:
+                        last_feedback = "Keep going, maintain control"
+                        form_status = "warning"
+
+                # Update count based on duration
+                if current_pose == "yoga" and pose_start_time is not None:
+                    elapsed_time = current_time - pose_start_time
+                    if elapsed_time >= max_pose_duration:
+                        count = max_pose_duration
+                        return {"count": count, "feedback": "Great job! You've completed your yoga pose!"}
+                    else:
+                        count = int(elapsed_time)
+                        last_feedback = f"Hold for {max_pose_duration - count} more seconds"
             else:
                 last_feedback = "Cannot detect body position. Please ensure you're visible in the camera"
-
-            # Break if we've counted 5 poses
-            if count >= 5:
-                return {"count": count, "feedback": "Great job! You've completed your yoga session!"}
+                form_status = "warning"
 
             # Add a small delay to prevent high CPU usage
             time.sleep(0.1)
 
         # If we hit the timeout
         if count > 0:
-            return {"count": count, "feedback": f"Time's up! You completed {count} poses. {last_feedback}"}
+            return {"count": count, "feedback": f"Time's up! You held the pose for {count} seconds. {last_feedback}"}
         else:
-            return {"count": 0, "feedback": "No poses detected. Please ensure you're visible in the camera"}
+            return {"count": 0, "feedback": "No pose detected. Please ensure you're visible in the camera"}
 
     except Exception as e:
-        logger.error(f"Error during pose detection: {str(e)}")
+        logger.error(f"Error during yoga pose detection: {str(e)}")
         return {"count": count, "feedback": f"Error: {str(e)}"}
     finally:
         if cap:

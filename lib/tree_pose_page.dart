@@ -71,7 +71,7 @@ class TreePosePage extends StatelessWidget {
   // Function to run the Tree_pose.py script
   void _runTreePoseScript() async {
     try {
-      final response = await _authService.authenticatedGet('http://localhost:5000/tree_pose');
+      final response = await _authService.authenticatedGet('http://localhost:5001/tree_pose');
       
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
